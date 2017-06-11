@@ -92,14 +92,45 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
-          /*
-          * TODO: Calculate steeering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value;
-          double throttle_value;
+          // Converts a point from global coordinates to local coordinates
+          double cos_psi = std::cos(psi);
+          double sin_psi = std::sin(psi);
+          for (int i = 0; i < ptsx.size(); ++i) {
+            double map_x = ptsx.at(i) - px;
+            double map_y = ptsy.at(i) - py;
+            ptsx.at(i) = map_x * cos_psi + map_y * sin_psi;
+            ptsy.at(i) = -map_x * sin_psi + map_y * cos_psi;
+          }
+
+          // Fitting a polynomial to the waypoints
+          Eigen::VectorXd coeffs = polyfit(
+            Eigen::Map<Eigen::VectorXd> (ptsx.data(), ptsx.size()),
+            Eigen::Map<Eigen::VectorXd> (ptsy.data(), ptsy.size()),
+            3
+          );
+
+          // Since we are working in the local reference frame of the car,
+          // px, py and psi are zero
+          double car_x = 0.0;
+          double car_y = 0.0;
+          double car_psi = 0.0;
+
+          // The CTE (Cross Track Error) is calculated by
+          // evaluating at polynomial at x (-1) and subtracting y
+          double cte = polyeval(coeffs, 0) - car_y;
+
+          // Recall orientation error is calculated as follows eψ=ψ−ψdes,
+          // where ψdes is can be calculated as arctan(f´ (x)).
+          // The derivative of coeffs[0] + coeffs[1] * x is coeffs[1]
+          double epsi = car_psi - atan(coeffs[1]);
+
+          // Calculate the steering angle and throttle using MPC
+          Eigen::VectorXd state(6);
+          state << car_x, car_y, car_psi, v, cte, epsi;
+
+          const auto actuators = mpc.Solve(state, coeffs);
+          double steer_value = -1 * actuators.at(0);
+          double throttle_value = actuators.at(1);
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -107,29 +138,21 @@ int main() {
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
 
-          //Display the MPC predicted trajectory 
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
-
+          // Display the MPC predicted trajectory
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+          msgJson["mpc_x"] = mpc.x_vals_;
+          msgJson["mpc_y"] = mpc.y_vals_;
 
-          msgJson["mpc_x"] = mpc_x_vals;
-          msgJson["mpc_y"] = mpc_y_vals;
-
-          //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
-
+          // Display the waypoints/reference line
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
-          msgJson["next_x"] = next_x_vals;
-          msgJson["next_y"] = next_y_vals;
-
+          msgJson["next_x"] = ptsx;
+          msgJson["next_y"] = ptsy;
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
+
           // Latency
           // The purpose is to mimic real driving conditions where
           // the car does actuate the commands instantly.
