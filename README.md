@@ -7,7 +7,7 @@ Self-Driving Car Engineer Nanodegree Program
 
 The goal of this project is to implement Model Predictive Control to drive the car around the track, using the Udacity Self Driving Car simulator.
 
-![simulator](http://assets/mpc.jpg)
+![simulator](assets/mpc.jpg)
 
 ### Vehicle Model
 
