@@ -7,6 +7,8 @@ Self-Driving Car Engineer Nanodegree Program
 
 The goal of this project is to implement Model Predictive Control to drive the car around the track, using the Udacity Self Driving Car simulator.
 
+![simulator](http://assets/mpc.jpg)
+
 ### Vehicle Model
 
 The vehicle model is based on the kinematic model described in class and based on a bicycle. For simplicity some dynamical effects are ignored, such as inertia, frictionn and torque. The car state is composed by:
@@ -35,7 +37,7 @@ MPC attempts to approximate a continues reference trajectory by means of discret
 
 ### Tunning MPC
 
-Some constants are defined at [MPC.cpp](src/MPC.mpp#L44-L51) to fine tunne the cost function. These constant values should change depending on the `max_velocity` defined at [MPC.cpp](src/MPC.mpp#L42).
+Some constants are defined at [MPC.cpp](src/MPC.cpp#L44-L51) to fine tunne the cost function. These constant values should change depending on the `max_velocity` defined at [MPC.cpp](src/MPC.cpp#L42).
 
 
 ## Dependencies
