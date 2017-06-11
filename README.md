@@ -27,13 +27,13 @@ The car actuators are two, and are calculated in the `MPC.cpp` module, :
 
 ### Coordinates system
 
-The application receive data from the simulator via websocket message events. The received data is an array of waypoints (x, y) in the global coordinates system, which are transformed to be relative to the car before to be used by the solver.
+The application receive data from the simulator via websocket message events. The received data is an array of waypoints (x, y) in the global coordinates system, which are transformed to be relative to the car before to be used by the solver. [main.cpp](src/main.cpp#L95-L103)
 
 ### Timestep Length and Elapsed Duration (N & dt)
 
-The goal of Model Predictive Control is to optimize the control inputs: [steering_angle, throttle]. An optimizer will tune these inputs until a low cost vector of control inputs is found. The length of this vector is determined by N. After some tests with different values for `N` (time length) `N=10` was selected. During the tests, I observed that large `N` values gives inaccurate prediction values.
+The goal of Model Predictive Control is to optimize the control inputs: [steering_angle, throttle]. An optimizer will tune these inputs until a low cost vector of control inputs is found. The length of this vector is determined by N. After some tests with different values for `N` (time length) `N=10` was selected. During the tests, I observed that large `N` values gives inaccurate prediction values. [MPC.cpp](src/MPC.cpp#L14)
 
-MPC attempts to approximate a continues reference trajectory by means of discrete paths between actuations. Larger values of `dt` result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory. During the tests, I observed that small `dt` values makes the car more erratic and large `dt` makes a smoother drive, so the car fails on closed curves. The value `dt=0.15` was finally selected.
+MPC attempts to approximate a continues reference trajectory by means of discrete paths between actuations. Larger values of `dt` result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory. During the tests, I observed that small `dt` values makes the car more erratic and large `dt` makes a smoother drive, so the car fails on closed curves. The value `dt=0.15` was finally selected. [MPC.cpp](src/MPC.cpp#L15)
 
 ### Tunning MPC
 
