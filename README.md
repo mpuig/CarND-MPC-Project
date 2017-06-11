@@ -20,7 +20,7 @@ The vehicle model is based on the kinematic model described in class and based o
 - `cte`: cross-track error.
 - `epsi`: orientation error.
 
-The car actuators are two, and are calculated in the method [MPC::Solve](src/MPC.cpp#L165-191) module and returned to [main](src/main.cpp#L131-133):
+The car actuators are two, and are calculated in the method [MPC::Solve](src/MPC.cpp#L165-L191) module and returned to [main](src/main.cpp#L131-L133):
 
 - `steer`: steering angle
 - `throttle`: acceleration (throttle/brake combined)
