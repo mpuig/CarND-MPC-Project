@@ -106,7 +106,7 @@ int main() {
           Eigen::VectorXd coeffs = polyfit(
             Eigen::Map<Eigen::VectorXd> (ptsx.data(), ptsx.size()),
             Eigen::Map<Eigen::VectorXd> (ptsy.data(), ptsy.size()),
-            3
+            2
           );
 
           // Since we are working in the local reference frame of the car,
@@ -114,6 +114,7 @@ int main() {
           double car_x = 0.0;
           double car_y = 0.0;
           double car_psi = 0.0;
+          v *= 0.44704; // MPH to meter/second
 
           // The CTE (Cross Track Error) is calculated by
           // evaluating at polynomial at x (-1) and subtracting y

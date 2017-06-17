@@ -12,7 +12,7 @@ using CppAD::AD;
 // If you were to open up Ipopt and plot the x and y values as the solver mutates them,
 // the plot would look like a worm moving around trying to fit the shape of the reference trajectory.
 size_t N = 10;
-double dt = 0.15;
+double dt = 0.1;
 
 // This value assumes the model presented in the classroom is used.
 // It was obtained by measuring the radius formed by running the vehicle in
@@ -34,22 +34,34 @@ const size_t idx_delta = idx_epsi + N;
 const size_t idx_a = idx_delta + N - 1;
 
 
+// Set the targets for cte, epsi, and velocity
 // Both the reference cross track and orientation errors are 0.
+// the velocity is converted from 50 MPH to meter/second
 const double k_ref_cte = 0;
 const double k_ref_epsi = 0;
+const double k_ref_v =  50 * 0.44704;
 
-// The reference velocity is set to 40 mph.
-const double k_ref_v = 50;
-
-// constants used to fine tunning the cost function
-const double k_w_cte = 1.5;
-const double k_w_epsi = 15.0;
-const double k_w_v = 1.5;
-const double k_w_delta = 1000.0;
-const double k_w_a = 1.0;
-const double k_w_delta2 = 20.0;
-const double k_w_a2 = 1.0;
-
+// Constants used to fine tunning the cost function.
+//
+// Some weights used in the cost function, to prioritize some of them on top of
+// the others. The final values were obtained by trial and error.
+//
+// For the reference state costs, Staying on track and maintaining the steering
+// minimum error is important, so 100 is given to cte and epsi.
+// A 1 is given to velocity, to accelerate and break as necessary to stay on track.
+const int k_w_cte = 10;
+const int k_w_epsi = 10;
+const int k_w_v = 1;
+// For the actuators, 100 is assigned to the steering actuator,
+// to have a small value between timesteps.
+// 1 is given to acceleration, to allow the vehicle to accelerate or break as necessary.
+const int k_w_current_delta = 100;
+const int k_w_current_a = 1;
+// For the sequential actuators, 100 is assigned to the steering angle change,
+// to smooth steering inputs.
+// 1 is given to acceleration, to allow the vehicle to accelerate or break as necessary.
+const int k_w_diff_delta = 100;
+const int k_w_diff_a = 1;
 
 class FG_eval {
  private:
@@ -66,13 +78,11 @@ class FG_eval {
 
   void operator()(ADvector& fg, const ADvector& vars) {
     // COSTS
-
     // vars is the vector of variables and fg is the vector of constraints.
 
     // Since 0 is the index at which Ipopt expects fg to store the cost value,
     // we sum all the components of the cost and store them at index 0.
     fg[0] = 0;
-
 
     // The part of the cost based on the reference state.
     // In each iteration through the loop, we sum three components
@@ -86,14 +96,15 @@ class FG_eval {
 
     // We've already taken care of the main objective - to minimize
     // our cross track, heading, and velocity errors.
-    //  A further enhancement is to constrain erratic control inputs.
-
+    //
+    // A further enhancement is to constrain erratic control inputs.
+    //
     // Minimize the use of actuators. For example, if we're making a
     // turn, we'd like the turn to be smooth, not sharp. Additionally,
     // the vehicle velocity should not change too radically.
     for (int i = 0; i < N - 1; i++) {
-      fg[0] += k_w_delta * CppAD::pow(vars[idx_delta + i], 2);
-      fg[0] += k_w_a * CppAD::pow(vars[idx_a + i], 2);
+      fg[0] += k_w_current_delta * CppAD::pow(vars[idx_delta + i], 2);
+      fg[0] += k_w_current_a * CppAD::pow(vars[idx_a + i], 2);
     }
 
     // Minimize the value gap between sequential actuations.
@@ -101,8 +112,8 @@ class FG_eval {
     // more consistent, or smoother. The next control input
     // should be similar to the current one.
     for (int i = 0; i < N - 2; i++) {
-      fg[0] += k_w_delta2 * CppAD::pow(vars[idx_delta + i + 1] - vars[idx_delta + i], 2);
-      fg[0] += k_w_a2 * CppAD::pow(vars[idx_a + i + 1] - vars[idx_a + i], 2);
+      fg[0] += k_w_diff_delta * CppAD::pow(vars[idx_delta + i + 1] - vars[idx_delta + i], 2);
+      fg[0] += k_w_diff_a * CppAD::pow(vars[idx_a + i + 1] - vars[idx_a + i], 2);
     }
 
     // CONSTRAINTS
@@ -140,8 +151,8 @@ class FG_eval {
       AD<double> delta0 = vars[idx_delta + i];
       AD<double> a0 = vars[idx_a + i];
 
-      AD<double> f0 = coeffs_[0] + coeffs_[1] * x0 + coeffs_[2] * CppAD::pow(x0, 2) + coeffs_[3] * CppAD::pow(x0, 3);
-      AD<double> psides0 = CppAD::atan(coeffs_[1] + 2 * coeffs_[2] * x0 + 3 * coeffs_[3] * CppAD::pow(x0, 2));
+      AD<double> f0 = coeffs_[0] + coeffs_[1] * x0 + coeffs_[2] * CppAD::pow(x0, 2);// + coeffs_[3] * CppAD::pow(x0, 3);
+      AD<double> psides0 = CppAD::atan(coeffs_[1] + 2 * coeffs_[2] * x0); // + 3 * coeffs_[3] * CppAD::pow(x0, 2));
 
       AD<double> psi_offset = v0 / Lf * delta0 * dt;
 
@@ -280,12 +291,18 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   auto cost = solution.obj_value;
   std::cout << "Cost " << cost << std::endl;
 
+  // To deal with the 100ms latency, we return the
+  // [delta_start + 1] and [a_start + 1] values,
+  // because is just 1 timestep interval `dt=0.1s`.
+  vector<double> result = {solution.x[idx_delta + 1], solution.x[idx_a + 1]};
+
+  // The rest of the values are used to display the green line.
   x_vals_.clear();
   y_vals_.clear();
-  for (int i = 0; i < N; ++i) {
-    x_vals_.push_back(solution.x[idx_x + i]);
-    y_vals_.push_back(solution.x[idx_y + i]);
+  for (int i = 0; i < N - 1; i++) {
+    x_vals_.push_back(solution.x[idx_x + 1 + i]);
+    y_vals_.push_back(solution.x[idx_y + 1 + i]);
   }
 
-  return {solution.x[idx_delta], solution.x[idx_a]};
+  return result;
 }

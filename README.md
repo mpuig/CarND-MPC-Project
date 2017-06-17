@@ -11,7 +11,8 @@ The goal of this project is to implement Model Predictive Control to drive the c
 
 ### Vehicle Model
 
-The vehicle model is based on the kinematic model described in class and based on a bicycle. For simplicity some dynamical effects are ignored, such as inertia, frictionn and torque. The car state is composed by:
+The vehicle model is based on the kinematic model described in class and based on a bicycle. For simplicity some dynamical effects are ignored, such as inertia, frictionn and torque. The kinematic model is based on the following state [x,y,ψ,v].
+On top of the given 4 states, we add cross-track error (cte) and the orientation error (epsi). So, the car state is composed by:
 
 - `x`: x coordinate.
 - `y`: y coordinate.
@@ -20,10 +21,18 @@ The vehicle model is based on the kinematic model described in class and based o
 - `cte`: cross-track error.
 - `epsi`: orientation error.
 
-The car actuators are two, and are calculated in the method [MPC::Solve](src/MPC.cpp#L165-L291) module and returned to [main](src/main.cpp#L131-L133):
+The actuators are the controls of the system, and for the car we have [δ,a]. `δ` represents the steering angle and `a` the acceleration (throttle and brake combined). Both values are limited to [-1,1] and are calculated in the method [MPC::Solve](src/MPC.cpp#L165-L291) module and returned to [main](src/main.cpp#L131-L133):
 
-- `steer`: steering angle
-- `throttle`: acceleration (throttle/brake combined)
+To update the state [x,y,ψ,v,cte,epsi], the following equations are used in [MPC.cpp](src/MPC.cpp#L159-L166):
+
+```
+x[t+1] = x[t] + v[t] * cos(psi[t]) * dt
+y[t+1] = y[t] + v[t] * sin(psi[t]) * dt
+psi[t+1] = psi[t] + v[t] / Lf * delta[t] * dt
+v[t+1] = v[t] + a[t] * dt
+cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
+epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
+```
 
 ### Coordinates system
 
@@ -31,15 +40,25 @@ The application receive data from the simulator via websocket message events. Th
 
 ### Timestep Length and Elapsed Duration (N & dt)
 
-The goal of Model Predictive Control is to optimize the control inputs: [steering_angle, throttle]. An optimizer will tune these inputs until a low cost vector of control inputs is found. The length of this vector is determined by N. After some tests with different values for `N` (time length) `N=10` was selected. During the tests, I observed that large `N` values gives inaccurate prediction values.
+The goal of Model Predictive Control is to optimize the control inputs: [steering_angle, throttle]. An optimizer will tune these inputs until a low cost vector of control inputs is found. The length of this vector is determined by N. As N increases, the model predicts further, but it also increases the computational cost.
 
-MPC attempts to approximate a continues reference trajectory by means of discrete paths between actuations. Larger values of `dt` result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory. During the tests, I observed that small `dt` values makes the car more erratic and large `dt` makes a smoother drive, so the car fails on closed curves. The value `dt=0.15` was finally selected.
+MPC attempts to approximate a continues reference trajectory by means of discrete paths between actuations. Larger values of `dt` result in less frequent actuations, which makes it harder to accurately approximate a continuous reference trajectory. As `dt` decreases, the algorithm re-evaluates its actuators more frequently. This can improve the predictions, but it's also more computational demanding.
 
-N & dt definition at [MPC.cpp](src/MPC.cpp#L14-L15)
+- Low values of N (for example N=5)makes the car leave the road in a few seconds. It's not an option.
+- High values of N (above 20) made a very unstable driving, with high weaving.
+- Small `dt` values makes the car more erratic.
+- Large `dt` makes a smoother drive, but the vehicle is too slow to respond to changes and the car fails on closed curves.
 
-### Tunning MPC
+After some tests `N=10` and `d=0.1` were selected [MPC.cpp](src/MPC.cpp#L14-L15):
 
-Some constants are defined at [MPC.cpp](src/MPC.cpp#L44-L51) to fine tunne the cost function. These constant values should change depending on the `max_velocity` defined at [MPC.cpp](src/MPC.cpp#L42).
+
+### Latency
+To deal with the 100ms latency, we return the [delta_start + 1] and [a_start + 1] values, because is just 1 timestep interval (`dt=0.1s`)  [MPC.cpp](src/MPC.cpp#L294-L297).
+
+
+### Tuning MPC
+
+To prioritize some cost factors on top of other, some weight constants are defined at [MPC.cpp](src/MPC.cpp#L44-L64) to fine tune the cost function. The final values were obtained by trial and error. These constant values should change depending on the `max_velocity` defined at [MPC.cpp](src/MPC.cpp#L42).
 
 
 ## Dependencies
