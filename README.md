@@ -108,6 +108,9 @@ To prioritize some cost factors on top of other, some weight constants are defin
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
 
+
+[![video](https://img.youtube.com/vi/T8LGIGrtxKc/0.jpg)](https://www.youtube.com/watch?v=T8LGIGrtxKc)
+
 ## Tips
 
 1. It's recommended to test the MPC on basic examples to see if your implementation behaves as desired. One possible example
